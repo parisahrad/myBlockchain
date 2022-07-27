@@ -1,29 +1,56 @@
 import { Block } from "./block";
 import { Blockchain } from "./blockchain";
+import { BlockchainNode } from "./blockchainNode";
 import { Transaction } from "./transaction";
+const _ = require("lodash");
 const express = require("express");
-
 const app = express();
+
+let PORT = 8765;
+
+let terminalArguments = process.argv;
+
+if (terminalArguments.length > 2) {
+  PORT = parseInt(terminalArguments[2]);
+}
 
 app.use(express.json());
 
-app.get("/blockchain", (req: any, res: any) => {
-  const genesisBlock = new Block();
-  const blockchain = new Blockchain(genesisBlock);
+const genesisBlock = new Block();
+let transactions: Transaction[] = [];
+let blockChain: Blockchain = new Blockchain(genesisBlock);
+let nodes: BlockchainNode[] = [];
 
-  const trx = new Transaction("test1", "test2", 100);
+app.post("/nodes/register", (req: any, res: any) => {
+  const urls: string[] = req.body.urls;
 
-  const nextBlock = blockchain.getNextBlock([trx]);
-  blockchain.addBlock(nextBlock);
+  urls.forEach((url) => {
+    const node = new BlockchainNode(url);
+    nodes.push(node);
+  });
 
-  const trx2 = new Transaction("test1", "test2", 1100);
-
-  const nextBlock2 = blockchain.getNextBlock([trx2]);
-  blockchain.addBlock(nextBlock2);
-
-  res.json(blockchain);
+  res.json(nodes);
 });
 
-app.listen(8765, () => {
-  console.log("server is running...");
+app.post("/transaction", (req: any, res: any) => {
+  const { from, to, amount } = req.body;
+
+  const trx = new Transaction(from, to, amount);
+
+  transactions.push(trx);
+  res.json(trx);
+});
+
+app.get("/blockchain", (req: any, res: any) => {
+  res.json(blockChain);
+});
+
+app.post("/mine", (req: any, res: any) => {
+  const block = blockChain.getNextBlock(req.body.transactions);
+  blockChain.addBlock(block);
+  res.json(blockChain);
+});
+
+app.listen(PORT, () => {
+  console.log(`server is running on port ${PORT}...`);
 });
