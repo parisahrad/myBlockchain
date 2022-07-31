@@ -4,6 +4,8 @@ import { BlockchainNode } from "./blockchainNode";
 import { Transaction } from "./transaction";
 const _ = require("lodash");
 const express = require("express");
+const fetch = require("node-fetch");
+
 const app = express();
 
 let PORT = 8765;
@@ -18,8 +20,41 @@ app.use(express.json());
 
 const genesisBlock = new Block();
 let transactions: Transaction[] = [];
+const allTransactions: Transaction[] = [];
 let blockChain: Blockchain = new Blockchain(genesisBlock);
 let nodes: BlockchainNode[] = [];
+
+app.get("/resolve", (req: any, res: any) => {
+  nodes.forEach((node) => {
+    fetch(`${node.url}/blockchain`)
+      .then((response: any) => response.json())
+      .then((otherBlockchain: any) => {
+        if (blockChain.blocks.length < otherBlockchain.blocks.length) {
+          allTransactions.forEach((trx) => {
+            fetch(`${node.url}/transactions`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(trx),
+            })
+              .then((response: any) => response.json())
+              .then((_: any) => {
+                fetch(`$node.url/mine`)
+                  .then((response: any) => response.json())
+                  .then((_: any) => {
+                    fetch(`${node.url}/blockchain`)
+                      .then((response: any) => response.json())
+                      .then((updatedBlockchain: Blockchain) => {
+                        blockChain = updatedBlockchain;
+                      });
+                  });
+              });
+          });
+        }
+      });
+  });
+});
 
 app.post("/nodes/register", (req: any, res: any) => {
   const urls: string[] = req.body.urls;
@@ -48,6 +83,13 @@ app.get("/blockchain", (req: any, res: any) => {
 app.post("/mine", (req: any, res: any) => {
   const block = blockChain.getNextBlock(req.body.transactions);
   blockChain.addBlock(block);
+
+  transactions.forEach((trx) => {
+    allTransactions.push(trx);
+  });
+
+  transactions = [];
+
   res.json(blockChain);
 });
 
